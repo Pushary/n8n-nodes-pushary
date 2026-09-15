@@ -1,0 +1,65 @@
+{
+  "name": "n8n-nodes-pushary",
+  "version": "0.2.0",
+  "description": "Durable customer approvals for AI workflows, plus Pushary notifications and operator questions.",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "pushary",
+    "push notification",
+    "human in the loop",
+    "approval",
+    "ai agent"
+  ],
+  "license": "MIT",
+  "homepage": "https://pushary.com",
+  "bugs": {
+    "url": "https://github.com/Pushary/n8n-nodes-pushary/issues"
+  },
+  "author": {
+    "name": "Pushary",
+    "email": "business@pushary.com"
+  },
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc && node copy-icons.js",
+    "dev": "n8n-node dev",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
+    "test": "node --test tests/*.test.cjs",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix"
+  },
+  "files": [
+    "dist",
+    "index.js",
+    "examples"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/PusharyApi.credentials.js",
+      "dist/credentials/PusharyDecisionApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Pushary/Pushary.node.js",
+      "dist/nodes/Pushary/PusharyDecision.node.js"
+    ]
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "^0.47.2",
+    "n8n-workflow": "^1.66.0",
+    "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pushary/n8n-nodes-pushary.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
