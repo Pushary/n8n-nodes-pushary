@@ -6,7 +6,7 @@ Customer approval for AI workflows using [Pushary](https://pushary.com/human-in-
 
 ## Install
 
-Version 0.2.0 source is available here; npm publication is pending. Build from source for the Decision node until that release is published.
+Use version 0.2.0 or later for customer Decisions. Version 0.2.1 corrects the installation documentation; node behavior is unchanged from 0.2.0.
 
 On self-hosted n8n, open **Settings → Community Nodes → Install** and enter `n8n-nodes-pushary`. This package is not yet a verified node and is not available through the n8n Cloud verified-node catalog. The Decision node is new in 0.2.0; 0.1.0 only has legacy operator operations.
 
