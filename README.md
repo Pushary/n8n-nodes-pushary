@@ -1,8 +1,12 @@
 # n8n-nodes-pushary
 
-Customer approval for AI workflows using [Pushary](https://pushary.com)'s durable Decisions API. An AI can propose an action; your workflow holds that action until the intended customer approves its exact details.
+Customer approval for AI workflows using [Pushary](https://pushary.com/human-in-the-loop-n8n?utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=guide)'s durable Decisions API. An AI can propose an action; your workflow holds that action until the intended customer approves its exact details.
+
+[Integration guide](https://pushary.com/human-in-the-loop-n8n?utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=guide) · [Connect your first customer with Partner](https://pushary.com/sign-up?from=agent&plan=partner&utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=partner-start)
 
 ## Install
+
+Version 0.2.0 source is available here; npm publication is pending. Build from source for the Decision node until that release is published.
 
 On self-hosted n8n, open **Settings → Community Nodes → Install** and enter `n8n-nodes-pushary`. This package is not yet a verified node and is not available through the n8n Cloud verified-node catalog. The Decision node is new in 0.2.0; 0.1.0 only has legacy operator operations.
 
