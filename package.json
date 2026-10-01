@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-pushary",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Durable customer approvals for AI workflows, plus Pushary notifications and operator questions.",
   "keywords": [
     "n8n-community-node-package",
@@ -23,7 +23,7 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "build": "tsc && node copy-icons.js",
+    "build": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && tsc && node copy-icons.js",
     "dev": "n8n-node dev",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
@@ -43,8 +43,7 @@
       "dist/credentials/PusharyDecisionApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/Pushary/Pushary.node.js",
-      "dist/nodes/Pushary/PusharyDecision.node.js"
+      "dist/nodes/Pushary/Pushary.node.js"
     ]
   },
   "peerDependencies": {

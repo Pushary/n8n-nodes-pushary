@@ -6,9 +6,9 @@ Customer approval for AI workflows using [Pushary](https://pushary.com/human-in-
 
 ## Install
 
-Use version 0.2.0 or later for customer Decisions. Version 0.2.1 corrects the installation documentation; node behavior is unchanged from 0.2.0.
+Version 0.3.0 consolidates all operations into one **Pushary** node with a **Resource** selector: **Notification** or **Decision**.
 
-On self-hosted n8n, open **Settings → Community Nodes → Install** and enter `n8n-nodes-pushary`. This package is not yet a verified node and is not available through the n8n Cloud verified-node catalog. The Decision node is new in 0.2.0; 0.1.0 only has legacy operator operations.
+On self-hosted n8n, open **Settings → Community Nodes → Install** and enter `n8n-nodes-pushary`. This package is not yet a verified node and is not available through the n8n Cloud verified-node catalog. Customer Decisions were introduced in 0.2.0; 0.1.0 only has legacy operator operations.
 
 ## Credentials
 
@@ -17,6 +17,8 @@ Create a **Pushary Decision API** credential with a Partner API key and the cust
 Use the default API URL. Only change it for a trusted development endpoint: your API key is sent there. The credential test checks key validity, not customer enrollment or Partner eligibility.
 
 ## Decision operations
+
+Add a **Pushary** node and select **Resource → Decision**.
 
 - **Create** requests a confirm decision asynchronously. Supply a trusted **Operation ID**, exact **Action** JSON, question, and expiration (60 seconds to 24 hours). The operation ID is the API idempotency key: retry with the same ID and identical inputs to reuse the decision. Changing the action requires a new operation version. Creation never returns `approved: true`, including replayed approvals.
 - **Check Approval** reads the saved Decision ID. Supply the original Operation ID and Action from trusted workflow state. It verifies the saved customer and action snapshot, then returns `approved: true` only for an answered confirm with `value: "yes"`. Pending, denied, expired, cancelled and non-confirm answers are not approvals. Missing or mismatched identity, changed action, malformed response and HTTP errors fail the node. With **Continue On Fail**, errors explicitly return `approved: false`.
@@ -40,15 +42,19 @@ For an AI workflow, have the model draft a proposal upstream of **Trusted Action
 
 Connect the real action only to the true output of the strict `approved === true` condition. Execute the checked `action` output. The destination must enforce its own idempotency using `operationId`: replaying an approved workflow does not make an external side effect exactly once. If the draft changes, create a new version and request approval again.
 
-Although the nodes can be used as AI tools, this workflow composition is the approval boundary. Pushary is not a built-in channel in n8n's Human Review dropdown. The example does not trust webhook payloads and does not expose an API operation that answers on the customer's behalf.
+Although the node can be used as an AI tool, this workflow composition is the approval boundary. Pushary is not a built-in channel in n8n's Human Review dropdown. The example does not trust webhook payloads and does not expose an API operation that answers on the customer's behalf.
 
 Decision contents appear in n8n execution history. Configure access, retention and pruning for your customer data. Keep API keys in credentials and never in exported workflows.
 
 ## Existing workflows
 
-The original **Pushary** node and **Pushary API** credential remain compatible:
+Existing **Pushary** workflows keep their operations and **Pushary API** credential; an omitted Resource defaults to **Notification**.
 
-- **Ask for Approval** uses the legacy operator `/ask` API for confirm, select or free-text questions. Partner customer decisions must use the new Decision node. Its short HTTP wait is not durable customer orchestration.
+Before upgrading from 0.2.x, replace each **Pushary Decision** node with **Pushary**, select **Resource → Decision**, copy its operation and parameters, reconnect its inputs and outputs, and select the same **Pushary Decision API** credential. Keep the node name when downstream expressions reference it. The separate `pusharyDecision` node type is removed in 0.3.0. Back up workflows before migrating.
+
+Under **Resource → Notification**:
+
+- **Ask for Approval** uses the legacy operator `/ask` API for confirm, select or free-text questions. Partner customer decisions must use **Resource → Decision**. Its short HTTP wait is not durable customer orchestration.
 - **Get Answer** reads an existing correlation ID without creating another question. Unanswered results and timeouts are not approval; only an answered confirm with `value: "yes"` may pass a confirmation gate.
 - **Send Notification** sends a fire-and-forget operator alert.
 

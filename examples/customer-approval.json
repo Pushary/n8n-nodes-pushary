@@ -30,13 +30,14 @@
     {
       "id": "create-decision",
       "name": "Create Decision",
-      "type": "n8n-nodes-pushary.pusharyDecision",
+      "type": "n8n-nodes-pushary.pushary",
       "typeVersion": 1,
       "position": [
         480,
         0
       ],
       "parameters": {
+        "resource": "decision",
         "operation": "create",
         "operationId": "={{ $json.operationId }}",
         "action": "={{ JSON.stringify($json.action) }}",
@@ -47,13 +48,14 @@
     {
       "id": "check-approval",
       "name": "Check Approval",
-      "type": "n8n-nodes-pushary.pusharyDecision",
+      "type": "n8n-nodes-pushary.pushary",
       "typeVersion": 1,
       "position": [
         720,
         0
       ],
       "parameters": {
+        "resource": "decision",
         "operation": "check",
         "decisionId": "={{ $(\"Create Decision\").first().json.decisionId }}",
         "operationId": "={{ $(\"Trusted Action\").first().json.operationId }}",
