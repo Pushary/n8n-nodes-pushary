@@ -281,7 +281,7 @@ export class Pushary implements INodeType {
   }
 }
 
-async function executeDecision(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+export async function executeDecision(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
   const credentials = await this.getCredentials('pusharyDecisionApi')
   const externalId = String(credentials.externalId || '').trim()
   const baseUrl = String(credentials.baseUrl || 'https://pushary.com/api/v1/server').replace(/\/$/, '')

@@ -79,9 +79,9 @@ test('durable decisions bind approval to the recipient and unchanged action, and
   assert.equal(requests.at(-1).method, 'DELETE')
 })
 
-test('one registered node scopes operations and credentials to each resource', () => {
+test('registered nodes preserve legacy decisions and scope operations and credentials to each resource', () => {
   const manifest = require('../package.json')
-  assert.deepEqual(manifest.n8n.nodes, ['dist/nodes/Pushary/Pushary.node.js'])
+  assert.deepEqual(manifest.n8n.nodes, ['dist/nodes/Pushary/Pushary.node.js', 'dist/nodes/Pushary/PusharyDecision.node.js'])
   const { description } = new Pushary()
   const legacy = NodeHelpers.getNodeParameters(description.properties, { operation: 'getAnswer', correlationId: 'q1' }, true, false)
   assert.equal(legacy.resource, 'notification')
@@ -148,4 +148,38 @@ test('unsupported resources and notification operations never send a request', a
   context.continueOnFail = () => true
   const output = (await Pushary.prototype.execute.call(context))[0][0]
   assert.deepEqual(output, { json: { error: 'Unknown operation' }, pairedItem: { item: 0 } })
+})
+
+
+test('serialized legacy approval checks resume with original credentials and fail closed', async () => {
+  const { PusharyDecision } = require('../dist/nodes/Pushary/PusharyDecision.node.js')
+  const { description } = new PusharyDecision()
+  const saved = JSON.parse(JSON.stringify({ name: 'Approve Publish', type: 'n8n-nodes-pushary.pusharyDecision',
+    typeVersion: 1, position: [0, 0], credentials: { pusharyDecisionApi: { id: 'customer', name: 'Customer' } },
+    parameters: { operation: 'check', operationId: 'draft:v1', decisionId: 'saved/decision', action: '{"version":1}' } }))
+  const params = NodeHelpers.getNodeParameters(description.properties, saved.parameters, true, false)
+  assert.equal(description.name, saved.type.split('.').at(-1))
+  assert.equal(description.hidden, true)
+  assert.equal(params.resource, undefined)
+  assert.deepEqual(params, saved.parameters)
+  let response = { decisionId: 'saved/decision', externalId: 'customer',
+    context: '{"operationId":"draft:v1","externalId":"customer","action":{"version":1}}',
+    type: 'confirm', status: 'answered', answered: true, value: 'yes' }
+  const context = {
+    getInputData: () => [{}], getNode: () => saved,
+    getCredentials: async credential => { assert.equal(credential, 'pusharyDecisionApi'); return { externalId: 'customer' } },
+    getNodeParameter: name => params[name], continueOnFail: () => false,
+    helpers: { httpRequestWithAuthentication: async (credential, request) => {
+      assert.equal(credential, 'pusharyDecisionApi'); assert.equal(request.method, 'GET')
+      assert.equal(request.url, 'https://pushary.com/api/v1/server/decisions/saved%2Fdecision')
+      return response
+    } },
+  }
+  const run = async () => (await new PusharyDecision().execute.call(context))[0][0].json
+  assert.equal((await run()).approved, true)
+  for (const status of ['pending', 'expired', 'cancelled']) {
+    response = { ...response, status }; assert.equal((await run()).approved, false)
+  }
+  response = { ...response, status: 'answered', externalId: 'other' }
+  await assert.rejects(run, /recipient|customer/)
 })

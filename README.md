@@ -50,7 +50,9 @@ Decision contents appear in n8n execution history. Configure access, retention a
 
 Existing **Pushary** workflows keep their operations and **Pushary API** credential; an omitted Resource defaults to **Notification**.
 
-Before upgrading from 0.2.x, replace each **Pushary Decision** node with **Pushary**, select **Resource → Decision**, copy its operation and parameters, reconnect its inputs and outputs, and select the same **Pushary Decision API** credential. Keep the node name when downstream expressions reference it. The separate `pusharyDecision` node type is removed in 0.3.0. Back up workflows before migrating.
+Existing **Pushary Decision** nodes remain registered for compatibility and use the same decision execution and validation as **Pushary → Decision**. Saved workflows retain their node names, credentials, expressions, action snapshots and decision IDs; paused executions can continue checking the original decision. The legacy node is hidden from the picker.
+
+To migrate voluntarily, back up workflows, let paused executions finish, then replace each **Pushary Decision** node with **Pushary**, select **Resource → Decision**, copy its operation and parameters, reconnect its inputs and outputs, and select the same **Pushary Decision API** credential. Keep the node name when downstream expressions reference it. Version 0.3.0 removed the legacy type; version 0.3.1 restores it. Upgrade 0.2.x workflows directly to 0.3.1 or later.
 
 Under **Resource → Notification**:
 

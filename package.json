@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-pushary",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Durable customer approvals for AI workflows, plus Pushary notifications and operator questions.",
   "keywords": [
     "n8n-community-node-package",
@@ -43,7 +43,8 @@
       "dist/credentials/PusharyDecisionApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/Pushary/Pushary.node.js"
+      "dist/nodes/Pushary/Pushary.node.js",
+      "dist/nodes/Pushary/PusharyDecision.node.js"
     ]
   },
   "peerDependencies": {
