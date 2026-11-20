@@ -1,0 +1,207 @@
+{
+  "name": "Review a draft field-service estimate from your phone",
+  "nodes": [
+    {
+      "id": "1fe26b28-ca25-5da6-889d-fe8169d1233f",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "29f7dac4-f9ea-52c0-bda3-f3313f1b91cc",
+      "name": "Sample Estimate",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({estimateId: 'DEMO-42', version: 1, summary: 'Friday service call, replace a worn thermostat', amount: 'USD 185.00', deadline: $now.plus({minutes: 6}).toMillis()}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "6a406355-db12-5d6c-ae7b-12cc851ca28e",
+      "name": "Ask Estimate Owner",
+      "type": "n8n-nodes-pushary.pushary",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "resource": "notification",
+        "operation": "ask",
+        "question": "={{ `Estimate ${$json.estimateId} v${$json.version}: ${$json.summary}. Estimated total ${$json.amount}. Is the draft ready to keep for owner follow-up?` }}",
+        "questionType": "confirm",
+        "waitForAnswer": false,
+        "agentName": "Estimate review"
+      }
+    },
+    {
+      "id": "4700adb1-978c-548e-a85d-9e8b6a204819",
+      "name": "Read Estimate Answer",
+      "type": "n8n-nodes-pushary.pushary",
+      "typeVersion": 1,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "resource": "notification",
+        "operation": "getAnswer",
+        "correlationId": "={{ $('Ask Estimate Owner').first().json.correlationId }}"
+      }
+    },
+    {
+      "id": "c4df38e0-be65-51a2-b147-e4f996237beb",
+      "name": "Still Pending",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "still-pending",
+              "leftValue": "={{ $json.status === 'pending' && $now.toMillis() < $('Sample Estimate').first().json.deadline }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e259b648-0f71-5684-bb73-98b2eecec274",
+      "name": "Wait Before Checking",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        -120
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 2,
+        "unit": "minutes"
+      }
+    },
+    {
+      "id": "fdf066ac-3040-58c3-8379-dd27c7266ada",
+      "name": "Record Estimate Decision",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        120
+      ],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => { const estimate = $('Sample Estimate').first().json; const answered = $json.status === 'answered' && $json.answered === true && $json.type === 'confirm'; const review = answered && $json.value === 'yes' ? 'ready_for_owner' : answered && $json.value === 'no' ? 'needs_changes' : 'held'; return JSON.stringify({ estimateId: estimate.estimateId, version: estimate.version, review, correlationId: $json.correlationId || null, estimateSent: false }); })() }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Sample Estimate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample Estimate": {
+      "main": [
+        [
+          {
+            "node": "Ask Estimate Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Estimate Owner": {
+      "main": [
+        [
+          {
+            "node": "Read Estimate Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Estimate Answer": {
+      "main": [
+        [
+          {
+            "node": "Still Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still Pending": {
+      "main": [
+        [
+          {
+            "node": "Wait Before Checking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Estimate Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Checking": {
+      "main": [
+        [
+          {
+            "node": "Read Estimate Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

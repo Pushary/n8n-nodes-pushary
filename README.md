@@ -8,7 +8,7 @@ Customer approval for AI workflows using [Pushary](https://pushary.com/human-in-
 
 Version 0.3.0 consolidates all operations into one **Pushary** node with a **Resource** selector: **Notification** or **Decision**.
 
-On self-hosted n8n, open **Settings → Community Nodes → Install** and enter `n8n-nodes-pushary`. This package is not yet a verified node and is not available through the n8n Cloud verified-node catalog. Customer Decisions were introduced in 0.2.0; 0.1.0 only has legacy operator operations.
+On n8n Cloud, open the node panel and search for **Pushary**. The [n8n listing](https://n8n.io/integrations/pushary/) shows the verified-node install steps for workspace owners and admins. On self-hosted n8n, open **Settings → Community Nodes → Install** and enter `n8n-nodes-pushary`. Customer Decisions were introduced in 0.2.0. Use 0.3.1 or later for the examples below.
 
 ## Credentials
 
@@ -45,6 +45,13 @@ Connect the real action only to the true output of the strict `approved === true
 Although the node can be used as an AI tool, this workflow composition is the approval boundary. Pushary is not a built-in channel in n8n's Human Review dropdown. The example does not trust webhook payloads and does not expose an API operation that answers on the customer's behalf.
 
 Decision contents appear in n8n execution history. Configure access, retention and pruning for your customer data. Keep API keys in credentials and never in exported workflows.
+
+## Pilot workflows
+
+- [Review a field-service estimate](examples/field-estimate-review.json). Connect a Pushary API credential to both Pushary nodes. The workflow asks the estimate owner about a sample draft and records their answer. The owner can then send or edit the draft in the tool they already use.
+- [Review a Gorgias refund exception](examples/gorgias-refund-review.json). Connect a Pushary Decision API credential to both Pushary nodes with an enrolled test reviewer. The workflow returns a private ticket note for an operator to paste into a sandbox ticket. Change the synthetic operation ID for a new proposal. Keep it stable when retrying the same proposal.
+
+Both templates start manually and use synthetic proposal data. Start with a paired test phone and confirm the approve and deny outcomes before connecting either workflow to a client system. The Gorgias workflow produces a note for staff review. Existing staff issue any approved refund through their normal process.
 
 ## Existing workflows
 

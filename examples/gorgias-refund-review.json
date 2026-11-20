@@ -1,0 +1,209 @@
+{
+  "name": "Prepare a Gorgias ticket note after phone review of a refund exception",
+  "nodes": [
+    {
+      "id": "1fe26b28-ca25-5da6-889d-fe8169d1233f",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "7866e416-1344-5d9e-b27d-bef29f3e4c59",
+      "name": "Sample Refund Proposal",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({operationId: 'refund:T-42:DEMO-4471:v1', action: {name: 'refund_exception', ticketId: 'T-42', orderId: 'DEMO-4471', amountCents: 480, currency: 'USD', reason: 'Shipping charge exception', version: 1}, deadline: $now.plus({minutes: 10}).toMillis()}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "88b54c13-a955-5ad6-a588-decf08f4af76",
+      "name": "Ask Refund Reviewer",
+      "type": "n8n-nodes-pushary.pushary",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "resource": "decision",
+        "operation": "create",
+        "operationId": "={{ $json.operationId }}",
+        "action": "={{ JSON.stringify($json.action) }}",
+        "expiresInSeconds": 600,
+        "question": "={{ `Approve the ${$json.action.currency} ${($json.action.amountCents / 100).toFixed(2)} refund exception for order ${$json.action.orderId}, ticket ${$json.action.ticketId}? Reason: ${$json.action.reason}.` }}"
+      }
+    },
+    {
+      "id": "1b9f3b64-1843-5d5d-9dfe-7b28cd24af6f",
+      "name": "Check Refund Decision",
+      "type": "n8n-nodes-pushary.pushary",
+      "typeVersion": 1,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "resource": "decision",
+        "operation": "check",
+        "decisionId": "={{ $('Ask Refund Reviewer').first().json.decisionId }}",
+        "operationId": "={{ $('Sample Refund Proposal').first().json.operationId }}",
+        "action": "={{ JSON.stringify($('Sample Refund Proposal').first().json.action) }}"
+      }
+    },
+    {
+      "id": "c4df38e0-be65-51a2-b147-e4f996237beb",
+      "name": "Still Pending",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "still-pending",
+              "leftValue": "={{ $json.status === 'pending' && $now.toMillis() < $('Sample Refund Proposal').first().json.deadline }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e259b648-0f71-5684-bb73-98b2eecec274",
+      "name": "Wait Before Checking",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        -120
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 2,
+        "unit": "minutes"
+      }
+    },
+    {
+      "id": "37a1c0ac-c252-5f03-aa71-e100417abdda",
+      "name": "Prepare Private Ticket Note",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        120
+      ],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => { const action = $('Sample Refund Proposal').first().json.action; const denied = $json.status === 'answered' && $json.answered === true && $json.type === 'confirm' && $json.value === 'no'; const review = $json.approved === true ? 'approved' : denied ? 'denied' : 'held'; const amount = `${action.currency} ${(action.amountCents / 100).toFixed(2)}`; const decisionId = $json.decisionId || null; return JSON.stringify({ ticketId: action.ticketId, review, decisionId, refundExecuted: false, privateNote: `Phone review ${review} for ${amount} on order ${action.orderId}. Reason: ${action.reason || 'see original proposal'}. Pushary decision: ${decisionId || 'unavailable'}. Refund has not been issued.` }); })() }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Sample Refund Proposal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample Refund Proposal": {
+      "main": [
+        [
+          {
+            "node": "Ask Refund Reviewer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Refund Reviewer": {
+      "main": [
+        [
+          {
+            "node": "Check Refund Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Refund Decision": {
+      "main": [
+        [
+          {
+            "node": "Still Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still Pending": {
+      "main": [
+        [
+          {
+            "node": "Wait Before Checking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Private Ticket Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Checking": {
+      "main": [
+        [
+          {
+            "node": "Check Refund Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
