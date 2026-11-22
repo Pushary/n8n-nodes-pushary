@@ -4,6 +4,15 @@ Customer approval for AI workflows using [Pushary](https://pushary.com/human-in-
 
 [Integration guide](https://pushary.com/human-in-the-loop-n8n?utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=guide) · [Connect your first customer with Partner](https://pushary.com/sign-up?from=agent&plan=partner&utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=partner-start)
 
+## What you need
+
+- **Decision** operations, for asking your own customers, need a Pushary Partner plan, from $99 a month. See the [Partner plan](https://pushary.com/partners?utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=readme).
+- **Ask for Approval**, under **Notification**, asks you yourself in the Pushary app. It works on the Agent, Agent Pro or Team plan. See [pricing](https://pushary.com/pricing?utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=readme).
+
+## What your customer gets
+
+Your customer connects the free Pushary app once through your enrollment link. They need no Pushary account or plan. Each request arrives on their phone as a push notification titled with your product name. They tap Approve or Deny there. n8n keeps the waiting execution between checks. Pushary keeps the decision and the saved action snapshot that **Check Approval** compares on every read. Your workflow keeps the action itself, which runs only when `approved === true`.
+
 ## Install
 
 Version 0.3.0 consolidates all operations into one **Pushary** node with a **Resource** selector: **Notification** or **Decision**.
@@ -24,7 +33,7 @@ Add a **Pushary** node and select **Resource → Decision**.
 - **Check Approval** reads the saved Decision ID. Supply the original Operation ID and Action from trusted workflow state. It verifies the saved customer and action snapshot, then returns `approved: true` only for an answered confirm with `value: "yes"`. Pending, denied, expired, cancelled and non-confirm answers are not approvals. Missing or mismatched identity, changed action, malformed response and HTTP errors fail the node. With **Continue On Fail**, errors explicitly return `approved: false`.
 - **Cancel** cancels an existing decision. It never grants approval.
 
-Action JSON contains 1–32 flat string, number or boolean fields. Field names are limited to 64 characters, string values to 200, and the complete saved snapshot to 2,000. Include every value that affects the action, including its immutable version. Do not include secrets. Server redaction that changes the snapshot causes verification to fail safely.
+Action JSON contains 1 to 32 flat string, number or boolean fields. Field names are limited to 64 characters, string values to 200, and the complete saved snapshot to 2,000. Include every value that affects the action, including its immutable version. Do not include secrets. Server redaction that changes the snapshot causes verification to fail safely.
 
 ## Example: propose, wait, verify, act
 
@@ -65,7 +74,7 @@ Under **Resource → Notification**:
 
 - **Ask for Approval** uses the legacy operator `/ask` API for confirm, select or free-text questions. Partner customer decisions must use **Resource → Decision**. Its short HTTP wait is not durable customer orchestration.
 - **Get Answer** reads an existing correlation ID without creating another question. Unanswered results and timeouts are not approval; only an answered confirm with `value: "yes"` may pass a confirmation gate.
-- **Send Notification** sends a fire-and-forget operator alert.
+- **Send Notification** sends a fire-and-forget alert to browsers subscribed to your site. It does not reach the Pushary phone app; use **Ask for Approval** for that.
 
 Legacy Ask has no retry idempotency. Poll with Get Answer, not repeated Ask calls. If you use a callback, verify its signature and reread trusted server state before executing an action; receiving a callback alone is not approval.
 
@@ -91,4 +100,8 @@ After publication, run `npx @n8n/scan-community-package n8n-nodes-pushary` and s
 - [n8n human review for AI tool calls](https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools)
 - [n8n Wait node and persistence](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.wait)
 - [n8n community-node verification guidelines](https://docs.n8n.io/connect/create-nodes/build-your-node/reference/verification-guidelines)
-- [Connect Pushary](https://pushary.com/docs/agents/connect-any-agent)
+- [Connect Pushary](https://pushary.com/docs/agents/connect-any-agent?utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=readme)
+- [Human in the loop for n8n](https://pushary.com/human-in-the-loop-n8n?utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=readme), with the workflow on one page
+- [Embed human approval in your product](https://pushary.com/docs/agents/embed?utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=readme), the Partner guide behind the Decision resource
+- [Browser demo](https://pushary.com/try?utm_source=github&utm_medium=oss-adapter&utm_campaign=pushary-n8n&utm_content=readme) of one approval
+- Related repositories: [durable workflows](https://github.com/Pushary/pushary-durable) for Inngest, Temporal and Vercel Workflow, and the [server SDK](https://github.com/Pushary/pushary-server)
