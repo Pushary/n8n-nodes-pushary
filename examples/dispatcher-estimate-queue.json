@@ -1,0 +1,436 @@
+{
+  "name": "Queue field-service estimates for dispatcher follow-up after phone review",
+  "nodes": [
+    {
+      "id": "5937022c-9d08-5e60-977f-e63c970be633",
+      "name": "Initialize queue",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "ea513954-948d-5311-b48c-5c5039530159",
+      "name": "Create dispatcher table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        250,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS public.dispatch_estimate_queue (\n estimate_id text PRIMARY KEY, revision integer NOT NULL CHECK (revision > 0),\n scope text NOT NULL, total_cents integer NOT NULL CHECK (total_cents > 0),\n status text NOT NULL CHECK (status IN ('Queued','Requesting','Awaiting reply','Ready to send','Needs changes','On hold')),\n question_id text, review_until timestamptz, next_check timestamptz NOT NULL DEFAULT now(),\n updated_at timestamptz NOT NULL DEFAULT now());",
+        "options": {}
+      }
+    },
+    {
+      "id": "97a3e961-1771-5152-a707-b27de95ece76",
+      "name": "Receive estimate revision",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        380
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dispatch-estimate-review",
+        "authentication": "basicAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "b66632f3-3f0c-404d-8de7-8da063904abe"
+    },
+    {
+      "id": "28b5ed22-7cff-5e86-8b6d-3373e4b50274",
+      "name": "Validate estimate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const input = $input.first().json.body;\nif (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Send one estimate as a JSON object.');\nconst {estimate_id, revision, scope, total_cents} = input;\nif (typeof estimate_id !== 'string' || !/^[A-Za-z0-9_-]{1,50}$/.test(estimate_id)) throw new Error('Use a 1\u201350 character estimate ID with letters, digits, dashes or underscores.');\nif (!Number.isInteger(revision) || revision < 1 || revision > 2147483647) throw new Error('Supply a positive integer revision.');\nif (typeof scope !== 'string' || !scope.trim() || scope.trim().length > 220) throw new Error('Describe the work in 1\u2013220 characters.');\nif (!Number.isInteger(total_cents) || total_cents < 1 || total_cents > 2147483647) throw new Error('Supply the USD total in positive whole cents.');\nreturn [{json:{estimate_id, revision, scope:scope.trim(), total_cents}}];"
+      }
+    },
+    {
+      "id": "561c1302-84ec-59db-af26-0c59de72b073",
+      "name": "Queue only a new revision",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        490,
+        380
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH accepted AS (\n INSERT INTO public.dispatch_estimate_queue AS q (estimate_id,revision,scope,total_cents,status)\n VALUES ($1,$2,$3,$4,'Queued')\n ON CONFLICT (estimate_id) DO UPDATE SET revision=EXCLUDED.revision,scope=EXCLUDED.scope,total_cents=EXCLUDED.total_cents,status='Queued',question_id=NULL,review_until=NULL,next_check=now(),updated_at=now()\n WHERE q.revision < EXCLUDED.revision\n RETURNING status)\n SELECT $1::text AS estimate_id, $2::int AS revision,\n CASE WHEN EXISTS (SELECT FROM accepted) THEN 'queued'\n WHEN EXISTS (SELECT FROM public.dispatch_estimate_queue WHERE estimate_id=$1 AND revision=$2 AND scope=$3 AND total_cents=$4) THEN 'already received'\n ELSE 'not applied; read current revision before retrying' END AS receipt;",
+        "options": {
+          "queryReplacement": "={{ [$json.estimate_id,$json.revision,$json.scope,$json.total_cents] }}"
+        }
+      }
+    },
+    {
+      "id": "076a2bbb-f324-50fd-8665-4d8a7581adb0",
+      "name": "Check queue each minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        820
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2ede9d2d-4a24-582e-9989-46f057b445ca",
+      "name": "Claim next due estimate",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        245,
+        820
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH candidate AS (\n SELECT estimate_id,status FROM public.dispatch_estimate_queue\n WHERE status IN ('Queued','Requesting','Awaiting reply') AND next_check <= now()\n ORDER BY next_check,estimate_id LIMIT 1 FOR UPDATE SKIP LOCKED)\n UPDATE public.dispatch_estimate_queue q SET\n status=CASE WHEN c.status='Queued' THEN 'Requesting' WHEN c.status='Requesting' OR q.review_until<=now() THEN 'On hold' ELSE q.status END,\n review_until=CASE WHEN c.status='Queued' THEN now()+interval '6 minutes' ELSE q.review_until END,\n next_check=now()+interval '1 minute', updated_at=now()\n FROM candidate c WHERE q.estimate_id=c.estimate_id\n RETURNING q.estimate_id,q.revision,q.scope,q.total_cents,q.question_id,q.status;",
+        "options": {}
+      }
+    },
+    {
+      "id": "87dd5b05-9b65-54c7-bb77-b592f49a9b4b",
+      "name": "Needs a new question?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        820
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Needs a new question?",
+              "leftValue": "={{ $json.status === 'Requesting' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "bf146690-5502-553f-8111-552c5db1db0c",
+      "name": "Has a pending reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        1050
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Has a pending reply?",
+              "leftValue": "={{ $json.status === 'Awaiting reply' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a2d89a12-c028-5d18-be6e-faa4e32a2e9d",
+      "name": "Ask estimate owner",
+      "type": "n8n-nodes-pushary.pushary",
+      "typeVersion": 1,
+      "position": [
+        715,
+        660
+      ],
+      "parameters": {
+        "resource": "notification",
+        "operation": "ask",
+        "question": "={{ \"Release estimate \" + $json.estimate_id + \" rev \" + $json.revision + \" for dispatcher follow-up? USD \" + ($json.total_cents / 100).toFixed(2) + \". \" + $json.scope }}",
+        "questionType": "confirm",
+        "waitForAnswer": false,
+        "agentName": "Dispatcher estimate queue"
+      }
+    },
+    {
+      "id": "61976c6a-dabc-5f39-bdb6-4a6182f2f892",
+      "name": "Attach question to this revision",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        965,
+        660
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.dispatch_estimate_queue SET question_id=$3,status='Awaiting reply',next_check=now(),updated_at=now()\n WHERE estimate_id=$1 AND revision=$2 AND status='Requesting' AND length($3)>0 RETURNING estimate_id,revision,status;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim next due estimate').first().json.estimate_id,$('Claim next due estimate').first().json.revision,$json.correlationId] }}"
+        }
+      }
+    },
+    {
+      "id": "0f824b97-e9da-52da-a703-1cc6fbda8ac9",
+      "name": "Read saved phone answer",
+      "type": "n8n-nodes-pushary.pushary",
+      "typeVersion": 1,
+      "position": [
+        965,
+        1020
+      ],
+      "parameters": {
+        "resource": "notification",
+        "operation": "getAnswer",
+        "correlationId": "={{ $json.question_id }}"
+      }
+    },
+    {
+      "id": "01b564b3-6152-53a9-84f7-db72c3930558",
+      "name": "Apply answer to matching revision",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1220,
+        1020
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.dispatch_estimate_queue SET status=CASE\n WHEN review_until<=now() THEN 'On hold'\n WHEN $4='yes' THEN 'Ready to send' WHEN $4='no' THEN 'Needs changes'\n WHEN $4='pending' THEN 'Awaiting reply' ELSE 'On hold' END,updated_at=now()\n WHERE estimate_id=$1 AND revision=$2 AND question_id=$3 AND status='Awaiting reply'\n RETURNING estimate_id,revision,status;",
+        "options": {
+          "queryReplacement": "={{ [$('Claim next due estimate').first().json.estimate_id,$('Claim next due estimate').first().json.revision,$('Claim next due estimate').first().json.question_id,($json.correlationId === $('Claim next due estimate').first().json.question_id && $json.status === \"answered\" && $json.answered === true && $json.type === \"confirm\" && [\"yes\",\"no\"].includes($json.value)) ? $json.value : ($json.status === \"pending\" ? \"pending\" : \"held\")] }}"
+        }
+      }
+    },
+    {
+      "id": "e5156a1c-0c74-59a4-9233-bd4ac532f899",
+      "name": "Start here",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -650,
+        -50
+      ],
+      "parameters": {
+        "content": "## Dispatcher estimate queue\nFor a field-service dispatcher who needs the owner to clear an estimate before sending it. Each estimate has one current row in PostgreSQL. Filter status = Ready to send to find approved drafts. Your dispatcher sends the quote. This workflow never contacts the customer.",
+        "width": 530,
+        "height": 240
+      }
+    },
+    {
+      "id": "b561fec9-6b01-5d1d-94af-a5f5871606af",
+      "name": "Connect and initialize",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        560,
+        -40
+      ],
+      "parameters": {
+        "content": "## Setup\nUse a dedicated PostgreSQL database. Tested setup: n8n 2.48.7, PostgreSQL 16 and n8n-nodes-pushary 0.3.1. Select a Postgres credential on every database node with permission to create the queue table, then insert, read and update rows. Run Initialize queue once. Install [n8n-nodes-pushary](https://n8n.io/integrations/pushary/) and select the same paired owner\u2019s Pushary API credential on both phone nodes. Set Basic Auth on the webhook and publish.",
+        "width": 530,
+        "height": 240
+      }
+    },
+    {
+      "id": "5431453b-d8ac-5987-bdfd-580c6f84336a",
+      "name": "Send one estimate",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        820,
+        300
+      ],
+      "parameters": {
+        "content": "## Intake\nPOST one JSON object to the production webhook from your quoting tool. Use HTTPS and the configured Basic Auth. Example: `{\"estimate_id\":\"JOB-21\",\"revision\":1,\"scope\":\"Replace kitchen tap\",\"total_cents\":24500}`. Reuse the same ID and revision on retries. Increase the revision when scope or price changes. An older revision cannot replace a newer one.",
+        "width": 530,
+        "height": 240
+      }
+    },
+    {
+      "id": "9d377021-e8a8-5930-96f7-cd32283822fb",
+      "name": "Read the queue",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -650,
+        750
+      ],
+      "parameters": {
+        "content": "## Dispatcher checks\nThe worker handles one due row per minute. Yes marks the current revision Ready to send. No marks Needs changes. A pending reply stays open for six minutes. A later revision clears the previous decision. Inspect On hold rows and failed executions manually. If sending failed after a request may have reached the phone, reconcile it before submitting a new revision.",
+        "width": 530,
+        "height": 240
+      }
+    },
+    {
+      "name": "Workflow map",
+      "id": "c3c9457d-5629-4928-98fb-7a658107f32f",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -650,
+        1240
+      ],
+      "parameters": {
+        "width": 1080,
+        "height": 550,
+        "content": "## Workflow map\n![Dispatcher workflow from estimate intake to recorded owner answer](https://raw.githubusercontent.com/Pushary/n8n-nodes-pushary/193301f12d647b32903999df8963413aa35898da/examples/dispatcher-queue.png)"
+      }
+    }
+  ],
+  "connections": {
+    "Initialize queue": {
+      "main": [
+        [
+          {
+            "node": "Create dispatcher table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive estimate revision": {
+      "main": [
+        [
+          {
+            "node": "Validate estimate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate estimate": {
+      "main": [
+        [
+          {
+            "node": "Queue only a new revision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check queue each minute": {
+      "main": [
+        [
+          {
+            "node": "Claim next due estimate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim next due estimate": {
+      "main": [
+        [
+          {
+            "node": "Needs a new question?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs a new question?": {
+      "main": [
+        [
+          {
+            "node": "Ask estimate owner",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has a pending reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask estimate owner": {
+      "main": [
+        [
+          {
+            "node": "Attach question to this revision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has a pending reply?": {
+      "main": [
+        [
+          {
+            "node": "Read saved phone answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read saved phone answer": {
+      "main": [
+        [
+          {
+            "node": "Apply answer to matching revision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
