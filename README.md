@@ -55,6 +55,10 @@ Although the node can be used as an AI tool, this workflow composition is the ap
 
 Decision contents appear in n8n execution history. Configure access, retention and pruning for your customer data. Keep API keys in credentials and never in exported workflows.
 
+## Try an order release
+
+Import [the order workflow](examples/order-release-review.json) and select your test customer’s Decision credential on both Pushary nodes. Run it and tap Approve. The last node shows the two items that would be released. Change the operation ID for a second run and tap Deny. The workflow stops before the release.
+
 ## Pilot workflows
 
 - [Review a field-service estimate](examples/field-estimate-review.json). Connect a Pushary API credential to both Pushary nodes. The workflow asks the estimate owner about a sample draft and records their answer. The owner can then send or edit the draft in the tool they already use.
