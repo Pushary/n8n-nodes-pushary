@@ -66,9 +66,7 @@ Both templates start manually and use synthetic proposal data. Start with a pair
 
 Existing **Pushary** workflows keep their operations and **Pushary API** credential; an omitted Resource defaults to **Notification**.
 
-Existing **Pushary Decision** nodes remain registered for compatibility and use the same decision execution and validation as **Pushary → Decision**. Saved workflows retain their node names, credentials, expressions, action snapshots and decision IDs; paused executions can continue checking the original decision. The legacy node is hidden from the picker.
-
-To migrate voluntarily, back up workflows, let paused executions finish, then replace each **Pushary Decision** node with **Pushary**, select **Resource → Decision**, copy its operation and parameters, reconnect its inputs and outputs, and select the same **Pushary Decision API** credential. Keep the node name when downstream expressions reference it. Version 0.3.0 removed the legacy type; version 0.3.1 restores it. Upgrade 0.2.x workflows directly to 0.3.1 or later.
+Version 0.4.0 no longer registers the separate **Pushary Decision** node from 0.2.x, because n8n allows one regular node per package. A workflow that still holds one shows it as an unknown node after the upgrade. Before upgrading, let paused executions finish, then replace each **Pushary Decision** node with **Pushary**, select **Resource → Decision**, copy its operation and parameters, reconnect its inputs and outputs, and select the same **Pushary Decision API** credential. Keep the node name when downstream expressions reference it. A decision ID created by the old node can be checked or cancelled by the new one.
 
 Under **Resource → Notification**:
 
